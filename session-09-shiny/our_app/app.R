@@ -50,7 +50,7 @@ ui <- fluidPage(
   
   # Main body
   fluidRow(
-    # left hand panel (3)
+    # left hand panel (width of 3)
     column(3,
            # Filtering panel
            wellPanel(
@@ -79,7 +79,7 @@ ui <- fluidPage(
              ))
            )
     ),
-    # right hand panel (9)
+    # right hand panel (width of 9)
     column(9,
            # specifying plotly::ggplotly() output
            plotlyOutput("plot1"),
@@ -97,7 +97,7 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
-  # Filter the movies, returning a data frame (inputs from slider and text boxes)
+  # Filter the movies, returning a data frame (inputs from sliders and text boxes)
   movies <- reactive({
     reviews <- input$reviews
     oscars <- input$oscars
@@ -120,6 +120,9 @@ server <- function(input, output, session) {
     
     # Optional: filter by director
     if (!is.null(input$director) && input$director != "") {
+      # As our data is an SQL database, we need to use SQL LIKE syntax to match patterns in strings
+      # This works similarly to Regular Expressions, but with % as a wildcard for any number of characters
+      # Hint: for excercise 3 you can just copy this block of code and change it to match the inputted Genre.
       director <- paste0("%", input$director, "%")
       m <- m %>% filter(Director %like% director)
     }
@@ -160,16 +163,36 @@ server <- function(input, output, session) {
     xvar_name <- names(axis_vars)[axis_vars == input$xvar]
     yvar_name <- names(axis_vars)[axis_vars == input$yvar]
     
-    # Create ggplot2 plot
-    p <- ggplot(movies(), aes_string(x = input$xvar, y = input$yvar, color = "has_oscar", text = "Title")) +
-      geom_point(size = 0.5, alpha = 0.5) +
-      scale_color_manual(values = c("Yes" = "orange", "No" = "gray")) +  # 'gray' instead of '#aaa'
-      labs(x = xvar_name, y = yvar_name, color = "Won Oscar") +
+    df <- movies()  # store once so we don't call movies() repeatedly
+    
+    # Build ggplot
+    p <- ggplot(
+      df,
+      aes_string(
+        x = input$xvar,
+        y = input$yvar,
+        fill = "has_oscar",
+        colour = "has_oscar",
+        text = "paste0(
+        '<b>', Title, '</b><br>',
+        'Year: ', Year, '<br>',
+        'Box Office: $', round(BoxOffice / 1000000, digits = 1), 'm'
+      )"
+      )
+    ) +
+      geom_point(shape = 21, alpha = 0.7) +
+      scale_fill_manual(values = c("Yes" = "orange", "No" = "gray"),name = "Won an Oscar") +
+      scale_color_manual(values = c("Yes" = "orange", "No" = "gray"),guide = "none") +
+      labs(
+        x = xvar_name,
+        y = yvar_name
+      ) +
       theme_minimal()
     
-    # Convert ggplot to plotly
-    ggplotly(p, tooltip = "text")
+    # Convert to plotly
+    ggplotly(p, tooltip = "text", height = 400)
   })
+  
   
   # Render plotly output
   output$plot1 <- renderPlotly({
